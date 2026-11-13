@@ -1,0 +1,152 @@
+# Build, test, sign and pack LiteSuite.Common; on a v* tag, publish the NuGet package.
+#
+# Package: LiteSuite.Common.<version>.nupkg (+ .snupkg symbols), DLLs net48 and net10.0-windows
+# signed with the LiteSuite publisher certificate when the secrets exist.
+# Published on a tag to:
+#   - GitHub Packages: https://nuget.pkg.github.com/svtica/index.json
+#   - the GitHub release of the tag (asset), for an offline or local feed.
+#
+# Signing secrets (repository settings > Secrets and variables > Actions):
+#   SIGNING_CERTIFICATE   the .pfx file, base64-encoded
+#   CERTIFICATE_PASSWORD  its password
+# Without them the package is built unsigned (and a release from a tag says so).
+
+name: Build
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  # Called by release.yml (Actions > Release > Run workflow) with the tag it just pushed:
+  # a tag pushed from a workflow does not trigger this one.
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Release tag to build and publish (e.g. v1.0.1)'
+        type: string
+        required: true
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: build-${{ inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_REF: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
+  CERTIFICATE_BASE64: ${{ secrets.SIGNING_CERTIFICATE }}
+  CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ env.RELEASE_REF }}
+
+    - name: Setup .NET 10 SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+
+    - name: Check PowerShell scripts (syntax, ASCII)
+      shell: pwsh
+      run: |
+        $bad = 0
+        foreach ($f in @(Get-ChildItem -Recurse -File -Include *.ps1 | Where-Object FullName -notmatch '\\(bin|obj)\\')) {
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$errors)
+          if ($errors) { $errors | ForEach-Object { Write-Host "::error file=$($f.FullName)::$_" }; $bad++ }
+          if ([IO.File]::ReadAllBytes($f.FullName) | Where-Object { $_ -gt 127 }) { Write-Host "::error file=$($f.FullName)::not ASCII"; $bad++ }
+        }
+        if ($bad) { exit 1 }
+
+    - name: Restore
+      run: dotnet restore LiteSuite.Common.sln
+
+    - name: Build
+      run: dotnet build LiteSuite.Common.sln -c Release --no-restore
+
+    - name: Unit tests (.NET Framework 4.8 and .NET 10)
+      run: dotnet test tests\LiteSuite.Common.Tests\LiteSuite.Common.Tests.csproj -c Release --no-build --logger "console;verbosity=normal"
+
+    - name: Version of the tag matches the project
+      if: startsWith(env.RELEASE_REF, 'refs/tags/')
+      shell: pwsh
+      run: |
+        $proj = Get-Content src\LiteSuite.Common\LiteSuite.Common.csproj -Raw
+        $version = [regex]::Match($proj, '<Version>([^<]+)</Version>').Groups[1].Value
+        $tag = $env:RELEASE_REF -replace '^refs/tags/v', ''
+        if ($version -ne $tag) { Write-Error "Tag v$tag but the project version is $version"; exit 1 }
+
+    - name: Decode certificate
+      if: ${{ env.CERTIFICATE_BASE64 != '' }}
+      shell: pwsh
+      run: |
+        $certPath = Join-Path $env:RUNNER_TEMP 'signing-cert.pfx'
+        [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:CERTIFICATE_BASE64))
+        "CERTIFICATE_PATH=$certPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+    - name: Sign the DLLs
+      if: ${{ env.CERTIFICATE_BASE64 != '' }}
+      shell: pwsh
+      run: ./tools/ci/Sign-Binaries.ps1 -Dir src\LiteSuite.Common\bin\Release -CertPath "$env:CERTIFICATE_PATH"
+
+    - name: Remove certificate
+      if: always()
+      shell: pwsh
+      run: |
+        if ($env:CERTIFICATE_PATH -and (Test-Path $env:CERTIFICATE_PATH)) { Remove-Item $env:CERTIFICATE_PATH -Force }
+
+    - name: Warn when the package is unsigned
+      if: ${{ env.CERTIFICATE_BASE64 == '' && startsWith(env.RELEASE_REF, 'refs/tags/') }}
+      run: echo "::warning::SIGNING_CERTIFICATE is not set; the LiteSuite.Common DLLs of this release are not signed."
+
+    - name: Pack
+      run: dotnet pack src\LiteSuite.Common\LiteSuite.Common.csproj -c Release --no-build -o out
+
+    - name: Check package content
+      shell: pwsh
+      run: |
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $pkg = Get-ChildItem out\*.nupkg | Where-Object Name -notlike '*.snupkg' | Select-Object -First 1
+        if (-not $pkg) { Write-Error 'No .nupkg produced'; exit 1 }
+        $zip = [IO.Compression.ZipFile]::OpenRead($pkg.FullName)
+        try { $names = @($zip.Entries | ForEach-Object FullName) } finally { $zip.Dispose() }
+        $required = '^lib/net48/LiteSuite\.Common\.dll$', '^lib/net10\.0-windows[^/]*/LiteSuite\.Common\.dll$', '^README\.md$'
+        $missing = $required | Where-Object { $p = $_; -not ($names | Where-Object { $_ -match $p }) }
+        if ($missing) { Write-Error "Missing in $($pkg.Name): $($missing -join ', ') (entries: $($names -join ', '))"; exit 1 }
+        Write-Host "Package OK: $($pkg.Name), $($names.Count) entries."
+
+    - name: Upload package
+      uses: actions/upload-artifact@v4
+      with:
+        name: LiteSuite.Common
+        path: out/
+
+    - name: Publish to GitHub Packages (if tag)
+      if: startsWith(env.RELEASE_REF, 'refs/tags/')
+      shell: pwsh
+      env:
+        NUGET_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        dotnet nuget push "out\*.nupkg" --source "https://nuget.pkg.github.com/svtica/index.json" --api-key $env:NUGET_TOKEN --skip-duplicate
+        if ($LASTEXITCODE -ne 0) { exit 1 }
+
+    - name: Create release (if tag)
+      if: startsWith(env.RELEASE_REF, 'refs/tags/')
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ inputs.tag || github.ref_name }}
+        files: |
+          out/*.nupkg
+          out/*.snupkg
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

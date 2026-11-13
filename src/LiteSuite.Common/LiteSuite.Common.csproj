@@ -1,0 +1,42 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    LiteSuite.Common: components shared by the LiteSuite tools (LiteDeploy, LiteTask).
+    Pure logic and small Win32 wrappers with no dependency on the application that uses them.
+    Built for .NET Framework 4.8 (LiteDeploy) and .NET 10 (LiteTask). Published as the NuGet
+    package LiteSuite.Common (GitHub Packages and release asset); the version below is raised by
+    bump-version.ps1 (Actions > Release > Run workflow).
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>net48;net10.0-windows</TargetFrameworks>
+    <OutputType>Library</OutputType>
+    <RootNamespace>LiteSuite</RootNamespace>
+    <AssemblyName>LiteSuite.Common</AssemblyName>
+    <LangVersion>7.3</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Version>1.0.0</Version>
+    <Product>LiteSuite</Product>
+    <Description>Components shared by the LiteSuite tools: PsExec command lines, Authenticode checks, Windows Credential Manager, Mark of the Web, process failure messages, parameter strings.</Description>
+    <Deterministic>true</Deterministic>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <!-- NuGet package -->
+  <PropertyGroup>
+    <PackageId>LiteSuite.Common</PackageId>
+    <Authors>LiteSuite contributors</Authors>
+    <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/svtica/LiteSuite.Common</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/svtica/LiteSuite.Common</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>LiteSuite;PsExec;Authenticode;CredentialManager</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+</Project>

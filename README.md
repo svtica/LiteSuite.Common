@@ -7,9 +7,8 @@ Authenticode checks, credentials, Mark of the Web, process failure messages and 
 - No dependency on the application that uses it, no third-party package.
 - `LiteSuite.Common.dll` ships next to the executable of each tool and is signed with it.
 
-> **Status**: the code is being moved here from the LiteDeploy repository
-> (`src/LiteSuite.Common` and `tests/LiteSuite.Common.Tests`), where it was created and tested.
-> Until then, LiteDeploy builds it from its own source tree.
+> **Status**: moved from the LiteDeploy repository (`src/LiteSuite.Common`), where it was created
+> and tested. LiteDeploy and LiteTask switch to the NuGet package next.
 
 ## Contents
 
@@ -36,24 +35,61 @@ D21B5D39EA4C7BDC69C94C86FC4602E8A1CA15B4
 `ValidUntrustedRoot`: the content is verified, and the identity comes from the pinned thumbprint.
 A file that was modified, or signed by anyone else, is always refused.
 
-## Layout (once the code is moved)
+## Layout
 
 | Path | Content |
 |---|---|
 | `src/LiteSuite.Common/` | The library (`LiteSuite.Common.csproj`, `net48;net10.0-windows`) |
 | `tests/LiteSuite.Common.Tests/` | MSTest tests, run on both frameworks |
+| `tools/ci/Sign-Binaries.ps1` | Signs and verifies the DLLs (CI) |
+| `bump-version.ps1` | Raises the version, commits and tags it (Release workflow) |
 
 ## Build and test
 
 Windows, .NET 10 SDK (it also builds the `net48` target):
 
 ```powershell
-dotnet build src\LiteSuite.Common -c Release
+dotnet build LiteSuite.Common.sln -c Release
 ```
 
 ```powershell
 dotnet test tests\LiteSuite.Common.Tests -c Release
 ```
+
+## Using the NuGet package
+
+The package `LiteSuite.Common` is published to GitHub Packages and attached to each
+[release](https://github.com/svtica/LiteSuite.Common/releases) (`.nupkg`).
+
+```xml
+<PackageReference Include="LiteSuite.Common" Version="1.0.0" />
+```
+
+GitHub Packages asks for a token even for a public package. In the consumer repository, a
+`nuget.config`:
+
+```xml
+<configuration>
+  <packageSources>
+    <add key="LiteSuite" value="https://nuget.pkg.github.com/svtica/index.json" />
+  </packageSources>
+</configuration>
+```
+
+- **CI** (GitHub Actions): `GITHUB_TOKEN` with `packages: read`, once the package settings
+  (*Package settings > Manage Actions access*) give that repository read access.
+- **Workstation**: a personal access token (classic) with `read:packages` only, added with
+  `dotnet nuget update source LiteSuite -u <user> -p <token> --store-password-in-clear-text`,
+  or from the `.nupkg` of a release placed in a local folder feed. Never commit the token.
+
+`LiteSuite.Common.dll` must ship next to the executable that uses it.
+
+## Releases
+
+*Actions > Release > Run workflow* (`patch` by default), as in LitePM, LiteDeploy and LiteTask:
+`bump-version.ps1` raises the version (1.0.0 -> 1.0.1), commits and tags it on `main`, then the
+build tests, signs the DLLs, packs and publishes the package. Locally:
+`.\bump-version.ps1 -Bump patch`.
 
 ## Conventions
 
