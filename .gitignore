@@ -1,0 +1,56 @@
+# Build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]64/
+artifacts/
+publish/
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+.nuget/
+
+# Tests
+TestResults/
+*.trx
+*.coverage
+coverage*.xml
+
+# Visual Studio, Rider, VS Code
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+*.userprefs
+*.rsuser
+*.DotSettings.user
+*.cache
+*.log
+
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Certificates and keys: never in the repository (the CI uses secrets).
+# The public certificate (.cer) may be committed.
+*.pfx
+*.p12
+*.snk
+*.key
+*.pem
+
+# Site-specific configuration and data: this repository is public
+settings.xml
+config.json
+*.local.json
+*.local.xml
+profils/
+profiles/
+*.csv
