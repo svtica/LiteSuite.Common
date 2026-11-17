@@ -1,7 +1,8 @@
 # LiteSuite.Common
 
-**Components shared by the LiteSuite tools** (LiteDeploy, LiteTask): PsExec command lines,
-Authenticode checks, credentials, Mark of the Web, process failure messages and parameter strings.
+**Components shared by the LiteSuite tools** (LiteDeploy, LitePM, LiteTask): PsExec command lines,
+Authenticode checks, credentials, Mark of the Web, process failure messages, parameter strings and
+self-update from the GitHub releases.
 
 - Targets **.NET Framework 4.8** (LiteDeploy) and **.NET 10** (`net10.0-windows`, LiteTask), C# 7.3.
 - No dependency on the application that uses it, no third-party package.
@@ -21,6 +22,14 @@ Authenticode checks, credentials, Mark of the Web, process failure messages and 
 | `MarkOfTheWeb` | Removes the `Zone.Identifier` stream of a downloaded file (like `Unblock-File`) |
 | `ProcessFailureFormatter` | Failure message of a child process: exit code, duration, stderr, end of stdout |
 | `ParameterParser` | `key=value` and `-Name Value` parameter strings |
+| `SelfUpdater`, `SelfUpdaterOptions`, `UpdateCheckResult`, `PreparedUpdate`, `UpdateStage` | Self-update of a tool from its latest GitHub release, without user interface (see below) |
+| `GitHubReleaseClient`, `GitHubRelease`, `GitHubReleaseAsset` | Latest release of a repository (GitHub API, `DataContractJsonSerializer`) and download of its package |
+| `ReleaseVersion` | Versions and tags (`v1.2.3`, `1.0.12.0`): parse, compare, newer or not |
+| `UpdateDownloadPolicy` | Accepted downloads: release assets of the expected repository on `github.com`, HTTPS only, size limit |
+| `UpdatePackage` | Extraction (no entry outside the folder), executable of the tool, signature check |
+| `ServiceLocator` | Windows services that run an executable (from their `ImagePath`) |
+| `UpdateScriptBuilder`, `UpdateScriptOptions`, `UpdateScriptLauncher` | ASCII PowerShell script that replaces the files once the tool has exited |
+| `UpdateException`, `UpdateFailure` | Why an update stopped (each tool shows its own translated message) |
 
 ## Publisher certificate
 
@@ -34,6 +43,47 @@ D21B5D39EA4C7BDC69C94C86FC4602E8A1CA15B4
 `AuthenticodeVerifier` reports a valid signature whose root is not trusted on the computer as
 `ValidUntrustedRoot`: the content is verified, and the identity comes from the pinned thumbprint.
 A file that was modified, or signed by anyone else, is always refused.
+
+## Self-update
+
+```csharp
+var options = new SelfUpdaterOptions
+{
+    ApplicationName = "LiteDeploy",
+    Repository = "LiteDeploy",                       // Owner: "svtica" by default
+    PackagePattern = @"^LiteDeploy.*\.zip$",
+    PackageName = "LiteDeploy.zip",
+    ExecutableName = "LiteDeploy.exe",
+    CurrentVersion = Application.ProductVersion,
+    CurrentExecutablePath = Application.ExecutablePath,
+    PreservePatterns = { "adcache.xml", "*.local.*" } // files of the user next to the executable
+};
+using (var updater = new SelfUpdater(options))
+{
+    UpdateCheckResult check = await updater.CheckAsync();
+    if (!check.IsUpdateAvailable) return;
+    PreparedUpdate update = await updater.PrepareAsync(check, progress);   // nothing replaced yet
+    updater.Apply(update, Process.GetCurrentProcess().Id);                 // then exit the tool
+}
+```
+
+1. `CheckAsync` reads `https://api.github.com/repos/<owner>/<repo>/releases/latest` and compares
+   `tag_name` with the running version.
+2. `PrepareAsync` downloads the package (only `https://github.com/<owner>/<repo>/releases/download/...`,
+   redirects on HTTPS only, 512 MB at most), extracts it (entries outside the folder refused),
+   removes the Mark of the Web and checks the Authenticode signature of the executable with
+   `UpdateSignaturePolicy`: pinned LiteSuite publisher or signer of the running executable; an
+   unsigned package only for an unsigned (development) build.
+3. `Apply` writes an ASCII PowerShell script in the work folder and starts it. The script waits for
+   the tool to exit, stops the services that run its executable (found from their `ImagePath`),
+   copies the new files without deleting anything and without overwriting the files of the user
+   that match `PreservePatterns`, restores the replaced files if a copy fails, starts the services
+   again and restarts the tool. When the installation folder is not writable or a service must be
+   stopped, only the copy runs elevated (UAC); the tool restarts without elevation. Log:
+   `%TEMP%\<Application>-update.log`.
+
+Failures throw `UpdateException` (`Failure`, and `Verdict` for a refused signature); the steps are
+reported through `IProgress<UpdateStage>`. Texts shown to the user stay in each tool.
 
 ## Layout
 
@@ -62,7 +112,7 @@ The package `LiteSuite.Common` is published to GitHub Packages and attached to e
 [release](https://github.com/svtica/LiteSuite.Common/releases) (`.nupkg`).
 
 ```xml
-<PackageReference Include="LiteSuite.Common" Version="1.0.0" />
+<PackageReference Include="LiteSuite.Common" Version="1.1.0" />
 ```
 
 GitHub Packages asks for a token even for a public package. In the consumer repository, a
