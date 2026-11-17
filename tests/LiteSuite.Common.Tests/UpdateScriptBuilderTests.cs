@@ -92,7 +92,7 @@ namespace LiteSuite.Tests
             StringAssert.Contains(script, "$restart = $false");
             StringAssert.Contains(script, "d''essai");
             StringAssert.Contains(script, "[char]0x00E0");
-            StringAssert.Contains(script, "# T?? update script");
+            StringAssert.Contains(script, "# T??l update script");
             Assert.IsFalse(script.Contains("{{"), "placeholder left");
         }
 

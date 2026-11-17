@@ -47,7 +47,7 @@ namespace LiteSuite
                 .Replace("{{RestartArguments}}", Literal(options.RestartArguments ?? ""))
                 .Replace("{{Restart}}", options.Restart ? "$true" : "$false")
                 .Replace("{{Elevate}}", options.Elevate ? "$true" : "$false")
-                .Replace("{{Preserve}}", List((options.PreservePatterns ?? new List<string>()).Select(p => p.Replace('/', '\\'))))
+                .Replace("{{Preserve}}", List((options.PreservePatterns ?? new List<string>()).Where(p => !string.IsNullOrEmpty(p)).Select(p => p.Replace('/', '\\'))))
                 .Replace("{{Services}}", List(options.ServiceNames ?? new List<string>()))
                 .Replace("{{WorkDir}}", Literal(options.WorkDirectory))
                 .Replace("{{LogPath}}", Literal(options.LogPath));
