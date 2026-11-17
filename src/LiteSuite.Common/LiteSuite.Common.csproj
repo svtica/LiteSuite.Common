@@ -14,7 +14,7 @@
     <LangVersion>7.3</LangVersion>
     <Nullable>disable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
-    <Version>1.0.1</Version>
+    <Version>1.1.0</Version>
     <Product>LiteSuite</Product>
     <Description>Components shared by the LiteSuite tools: PsExec command lines, Authenticode checks, Windows Credential Manager, Mark of the Web, process failure messages, parameter strings, self-update from GitHub releases.</Description>
     <Deterministic>true</Deterministic>
