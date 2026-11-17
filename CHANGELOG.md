@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-17
+
 ### Added
 - Self-update from the GitHub releases, generalized from the `UpdateManager` of LiteTask, for
   LiteDeploy, LitePM and LiteTask:
