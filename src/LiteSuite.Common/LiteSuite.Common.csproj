@@ -16,7 +16,7 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <Version>1.0.1</Version>
     <Product>LiteSuite</Product>
-    <Description>Components shared by the LiteSuite tools: PsExec command lines, Authenticode checks, Windows Credential Manager, Mark of the Web, process failure messages, parameter strings.</Description>
+    <Description>Components shared by the LiteSuite tools: PsExec command lines, Authenticode checks, Windows Credential Manager, Mark of the Web, process failure messages, parameter strings, self-update from GitHub releases.</Description>
     <Deterministic>true</Deterministic>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
@@ -30,11 +30,24 @@
     <PackageProjectUrl>https://github.com/svtica/LiteSuite.Common</PackageProjectUrl>
     <RepositoryUrl>https://github.com/svtica/LiteSuite.Common</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageTags>LiteSuite;PsExec;Authenticode;CredentialManager</PackageTags>
+    <PackageTags>LiteSuite;PsExec;Authenticode;CredentialManager;SelfUpdate</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
+
+  <!-- Self-update: HTTP, zip, services. .NET Framework assemblies; on .NET 10 the service
+       controller is a Microsoft package (the same one LiteTask uses). -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.ServiceProcess" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+    <PackageReference Include="System.ServiceProcess.ServiceController" Version="10.0.14" />
+  </ItemGroup>
 
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
